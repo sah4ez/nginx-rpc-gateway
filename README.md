@@ -8,4 +8,8 @@ Example of JSONRPC gateway server on nginx + njs.
 
 ## Install
 
-Copy all files to `conf.d` of your nginx server.
+Clone this repo to `/etc/nginx/`.
+And inclue module to your config:
+```
+include /etc/nginx/nginx-rpc-gateway/nginx-gateway;
+```
