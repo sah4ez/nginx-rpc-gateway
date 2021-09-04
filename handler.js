@@ -9,4 +9,4 @@ function echo(r) {
 	}));
 }
 
-export {echo};
+export default {echo};

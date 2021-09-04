@@ -1,4 +1,8 @@
-import {methods} from './modules/allowed_methods';
+const methods = {
+	"abc.def":true,
+	"abc.fed":true,
+	"abc.abc":false
+};
 
 function allowed(req, reject) {
 	var method = req["method"];
@@ -57,4 +61,4 @@ function JSONgateway(r) {
 			then((rr) => r.return(200, JSON.stringify(resp)));
 };
 
-export {JSONgateway};
+export default {JSONgateway};
