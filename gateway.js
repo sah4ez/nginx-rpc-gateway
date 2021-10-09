@@ -4,6 +4,10 @@ const methods = {
 	"abc.abc":false
 };
 
+const skipMethodCheck = {
+	"abc.def":true,
+};
+
 function introspect(r) {
 	return ngx.fetch("http://127.0.0.1:8083/introspect", { method:"GET"}).then((resp) => {
 				if (resp.status == 401) {
@@ -17,17 +21,38 @@ const middlewares = [
 ];
 
 function allowed(req, reject) {
-	var method = req["method"];
+	var method = req.method;
 	if (methods[method]) {
 		return
 	}
 	var a = {
-		"id":req["id"], 
-		"jsonrpc":req["jsonrpc"],
+		"id":req.id,
+		"jsonrpc":req.jsonrpc,
 		"error":{"code":-32601, "message":"Method not found"}
 	};
 	reject(a);
 };
+
+function checkValueOrProxy(req, reject) {
+	var method = req.method;
+	if (!skipMethodCheck[method]) {
+		return
+	}
+	
+	if (req.params.abc == "cba") {
+		var a = {
+			"id":req.id,
+			"jsonrpc":req.jsonrpc,
+			"error":{"code":-32601, "message":"Bad request"}
+		};
+		reject(a)
+		}
+};
+
+const rpcRequestMiddlewares =  [
+	allowed,
+	checkValueOrProxy,
+]
 
 function DoRequest(parts, method, req) {
 	return ngx.fetch(
@@ -35,10 +60,10 @@ function DoRequest(parts, method, req) {
 		{
 			method:"POST",
 			body:JSON.stringify({
-				"id":req["id"],
+				"id":req.id,
 				"method":method,
-				"params":req["params"],
-				"jsonrpc":req["jsonrpc"],
+				"params":req.params,
+				"jsonrpc":req.jsonrpc,
 			}),
 
 		})
@@ -46,9 +71,9 @@ function DoRequest(parts, method, req) {
 
 function ParseRequest(req, promises) {
 	var p = new Promise((resolve, reject) => {
-		allowed(req, reject);
+		rpcRequestMiddlewares.forEach((middleware) => middleware(req, reject))
 
-		var method = req["method"];
+		var method = req.method
 		var parts = String(method).split(".");
 		if (parts.length === 3) {
 			method = parts[2]
