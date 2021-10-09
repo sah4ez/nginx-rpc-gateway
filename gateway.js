@@ -4,6 +4,18 @@ const methods = {
 	"abc.abc":false
 };
 
+function introspect(r) {
+	return ngx.fetch("http://127.0.0.1:8083/introspect", { method:"GET"}).then((resp) => {
+				if (resp.status == 401) {
+					r.return(resp.status, 'unauthorized');
+				}}).
+			catch((err) => r.return(500, 'Internal error'))
+}
+
+const middlewares = [
+	introspect,
+];
+
 function allowed(req, reject) {
 	var method = req["method"];
 	if (methods[method]) {
@@ -52,6 +64,8 @@ function ParseRequest(req, promises) {
 
 function JSONgateway(r) {
 	var resp = [];
+
+	middlewares.forEach((middleware) => middleware(r));
 
 	var promises = [];
 	JSON.parse(r.requestText).map((req) => { ParseRequest(req, promises) });
