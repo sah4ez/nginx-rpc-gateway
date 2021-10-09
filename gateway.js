@@ -17,38 +17,44 @@ function allowed(req, reject) {
 	reject(a);
 };
 
+function DoRequest(parts, method, req) {
+	return ngx.fetch(
+		"http://127.0.0.1:8083/"+parts[0]+'/'+parts[1],
+		{
+			method:"POST",
+			body:JSON.stringify({
+				"id":req["id"],
+				"method":method,
+				"params":req["params"],
+				"jsonrpc":req["jsonrpc"],
+			}),
+
+		})
+}
+
+function ParseRequest(req, promises) {
+	var p = new Promise((resolve, reject) => {
+		allowed(req, reject);
+
+		var method = req["method"];
+		var parts = String(method).split(".");
+		if (parts.length === 3) {
+			method = parts[2]
+		}
+
+		DoRequest(parts, method, req).
+			then((reply) => reply.text()).
+			then((rr) => resolve(JSON.parse(rr))).
+			catch((err) => reject(err))
+	});
+	promises.push(p);
+}
+
 function JSONgateway(r) {
 	var resp = [];
 
 	var promises = [];
-	JSON.parse(r.requestText).map((req) => {
-
-		var p = new Promise((resolve, reject) => {
-			allowed(req, reject);
-
-			var method = req["method"];
-			var parts = String(method).split(".");
-            if (parts.length === 3) {
-                method = parts[2]
-            }
-			ngx.fetch(
-				"http://127.0.0.1:8083/"+parts[0]+'/'+parts[1],
-				{
-					method:"POST",
-					body:JSON.stringify({
-						"id":req["id"],
-						"method":method,
-						"params":req["params"],
-						"jsonrpc":req["jsonrpc"],
-					}),
-
-				}).
-				then((reply) => reply.text()).
-				then((rr) => resolve(JSON.parse(rr))).
-				catch((err) => reject(err))
-		});
-		promises.push(p);
-	});
+	JSON.parse(r.requestText).map((req) => { ParseRequest(req, promises) });
 
 	return Promise.allSettled(promises).
 			then((results) => results.forEach((result) => {
