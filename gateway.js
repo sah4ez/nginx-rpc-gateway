@@ -51,7 +51,7 @@ function JSONgateway (r) {
 
   return Promise.allSettled(promises) // wait all promises and return response
     .then(results => checkResults(results, resp))
-    .then(r.return(200, JSON.stringify(resp)))
+    .then(success => r.return(200, JSON.stringify(resp)))
 };
 
 export default { JSONgateway }
