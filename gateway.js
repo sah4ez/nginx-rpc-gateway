@@ -20,32 +20,38 @@ function ParseRequest (r, req, promises) {
     rpcRequestMiddlewares.forEach((middleware) => middleware(req, reject))
 
     DoRequest(b.loadURL(r, req), b.loadMethod(r, req), req)
-      .then((reply) => reply.text())
-      .then((rr) => resolve(JSON.parse(rr)))
-      .catch((err) => reject(err))
+      .then(reply => reply.text())
+      .then(rr => resolve(JSON.parse(rr))) // will recived in the checkResult in the success case
+      .catch(err => reject(err)) // will recieved in the failed case of the checkResult
   })
   promises.push(p)
 }
 
-function checkResult (result, resp) {
-  if (result.value === undefined) {
-    resp.push(result.reason)
-  } else {
-    resp.push(result.value)
-  }
+function checkResults (results, resp) {
+  results.forEach(result => {
+    // result contains or value for success response, or reason for failed
+    if (result.value === undefined) {
+      resp.push(result.reason)
+    } else {
+      resp.push(result.value)
+    }
+  })
 }
 
 function JSONgateway (r) {
   const resp = []
+  // the each middleware function to apply on the request r
+  // if middleware failed would return error from the method
   middlewares.forEach((middleware) => middleware(r))
 
   const promises = []
+  // per each request in the batch will processed through ParseRequest
+  // and for failed processing will call reject method of the promis
   JSON.parse(r.requestText).map(req => ParseRequest(r, req, promises))
 
-  return Promise.allSettled(promises)
-    .then((results) => {
-      results.forEach(result => checkResult(result, resp))
-    }).then((rr) => r.return(200, JSON.stringify(resp)))
+  return Promise.allSettled(promises) // wait all promises and return response
+    .then(results => checkResults(results, resp))
+    .then(r.return(200, JSON.stringify(resp)))
 };
 
 export default { JSONgateway }

@@ -1,3 +1,6 @@
+/*
+ * dummy echo method
+* */
 function echo (r) {
   const b = JSON.parse(r.requestText)
   r.return(200, JSON.stringify({
