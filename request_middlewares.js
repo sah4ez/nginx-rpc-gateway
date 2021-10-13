@@ -16,8 +16,18 @@ function introspect (r) {
     .catch(err => r.return(500, 'Internal error: ' + err))
 }
 
+const allowedPath = {
+  '/rpc': true
+}
+
+function checkPath (r) {
+  if (!allowedPath[r.uri]) {
+    r.return(404, '404 not found')
+  }
+}
+
 const middlewares = [
   introspect
 ]
 
-export default { middlewares, introspect }
+export default { middlewares, introspect, checkPath }

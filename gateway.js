@@ -3,7 +3,10 @@ import rw from 'request_middlewares.js'
 import b from 'balancing.js'
 import utils from 'util_rpc.js'
 
-const middlewares = [rw.introspect]
+const middlewares = [
+  rw.introspect,
+  rw.checkPath
+]
 
 const rpcRequestMiddlewares = [
   e.allowed,
