@@ -1,109 +1,51 @@
-const methods = {
-	"abc.def":true,
-	"abc.fed":true,
-	"abc.abc":false
-};
+import e from 'external.js'
+import rw from 'request_middlewares.js'
+import b from 'balancing.js'
+import utils from 'util_rpc.js'
 
-const skipMethodCheck = {
-	"abc.def":true,
-};
+const middlewares = [rw.introspect]
 
-function introspect(r) {
-	return ngx.fetch("http://127.0.0.1:8083/introspect", { method:"GET"}).then((resp) => {
-				if (resp.status == 401) {
-					r.return(resp.status, 'unauthorized');
-				}}).
-			catch((err) => r.return(500, 'Internal error'))
-}
-
-const middlewares = [
-	introspect,
-];
-
-function allowed(req, reject) {
-	var method = req.method;
-	if (methods[method]) {
-		return
-	}
-	var a = {
-		"id":req.id,
-		"jsonrpc":req.jsonrpc,
-		"error":{"code":-32601, "message":"Method not found"}
-	};
-	reject(a);
-};
-
-function checkValueOrProxy(req, reject) {
-	var method = req.method;
-	if (!skipMethodCheck[method]) {
-		return
-	}
-	
-	if (req.params.abc == "cba") {
-		var a = {
-			"id":req.id,
-			"jsonrpc":req.jsonrpc,
-			"error":{"code":-32601, "message":"Bad request"}
-		};
-		reject(a)
-		}
-};
-
-const rpcRequestMiddlewares =  [
-	allowed,
-	checkValueOrProxy,
+const rpcRequestMiddlewares = [
+  e.allowed,
+  e.checkValue
 ]
 
-function DoRequest(parts, method, req) {
-	return ngx.fetch(
-		"http://127.0.0.1:8083/"+parts[0]+'/'+parts[1],
-		{
-			method:"POST",
-			body:JSON.stringify({
-				"id":req.id,
-				"method":method,
-				"params":req.params,
-				"jsonrpc":req.jsonrpc,
-			}),
-
-		})
+function DoRequest (url, method, req) {
+  const body = { method: 'POST', body: utils.toBody(req, method) }
+  return ngx.fetch(url, body) // eslint-disable-line
 }
 
-function ParseRequest(req, promises) {
-	var p = new Promise((resolve, reject) => {
-		rpcRequestMiddlewares.forEach((middleware) => middleware(req, reject))
+function ParseRequest (r, req, promises) {
+  const p = new Promise((resolve, reject) => {
+    rpcRequestMiddlewares.forEach((middleware) => middleware(req, reject))
 
-		var method = req.method
-		var parts = String(method).split(".");
-		if (parts.length === 3) {
-			method = parts[2]
-		}
-
-		DoRequest(parts, method, req).
-			then((reply) => reply.text()).
-			then((rr) => resolve(JSON.parse(rr))).
-			catch((err) => reject(err))
-	});
-	promises.push(p);
+    DoRequest(b.loadURL(r, req), b.loadMethod(r, req), req)
+      .then((reply) => reply.text())
+      .then((rr) => resolve(JSON.parse(rr)))
+      .catch((err) => reject(err))
+  })
+  promises.push(p)
 }
 
-function JSONgateway(r) {
-	var resp = [];
+function checkResult (result, resp) {
+  if (result.value === undefined) {
+    resp.push(result.reason)
+  } else {
+    resp.push(result.value)
+  }
+}
 
-	middlewares.forEach((middleware) => middleware(r));
+function JSONgateway (r) {
+  const resp = []
+  middlewares.forEach((middleware) => middleware(r))
 
-	var promises = [];
-	JSON.parse(r.requestText).map((req) => { ParseRequest(req, promises) });
+  const promises = []
+  JSON.parse(r.requestText).map(req => ParseRequest(r, req, promises))
 
-	return Promise.allSettled(promises).
-			then((results) => results.forEach((result) => {
-				if (result.value === undefined) {
-					resp.push(result.reason);
-				} else {
-					resp.push(result.value);
-				}
-			})).
-			then((rr) => r.return(200, JSON.stringify(resp)));
+  return Promise.allSettled(promises)
+    .then((results) => {
+      results.forEach(result => checkResult(result, resp))
+    }).then((rr) => r.return(200, JSON.stringify(resp)))
 };
 
-export default {JSONgateway};
+export default { JSONgateway }
